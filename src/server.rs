@@ -20,7 +20,10 @@ use rmcp::{
 
 use crate::client::ApiClient;
 use crate::conventions;
-use crate::tools::dto::{BillRevenueArgs, BillRevenueEntry, ListResponse};
+use crate::tools::dto::{
+    BillRevenueArgs, BillRevenueEntry, ListResponse, StationRevenueRankingArgs,
+    StationRevenueRankingEntry,
+};
 
 /// MCP server over the datacenter APIs. Holds the upstream HTTP client
 /// and the macro-generated tool router.
@@ -52,10 +55,10 @@ impl EomcServer {
     ///
     /// ## Arguments
     ///
-    /// * `start` - Optional. The start date (YYYY-MM-DD).
-    /// * `end` - Optional. The end date (YYYY-MM-DD).
-    /// * `freq` - Optional. The frequency of the data. Default is "week_sun".
-    /// * `seller_id` - Pass a `seller_id` to scope to one operator (the response then carries a
+    /// * `start`: Optional. The start date (YYYY-MM-DD).
+    /// * `end`: Optional. The end date (YYYY-MM-DD).
+    /// * `freq`: Optional. The frequency of the data. Default is "week_sun".
+    /// * `seller_id`: Pass a `seller_id` to scope to one seller (the response then carries a
     /// `seller_id` column); omit it for a network-wide query.
     ///
     /// ## Warning
@@ -72,6 +75,48 @@ impl EomcServer {
         let res = self
             .client
             .get_array_into_object::<_, BillRevenueEntry>("bill_revenue", &args.window)
+            .await?;
+        Ok(Json(res))
+    }
+
+    /// [Starcharger] per-station revenue ranking with the clean `revenue_per_kw`.
+    ///
+    /// One row per `(station, period)`, ordered by `total_revenue` DESC, with the
+    /// dimensionally-clean `revenue_per_kw = AVG(daily revenue) / AVG(daily power)`
+    /// plus energy, opening hours, and utilisation rate.
+    ///
+    /// ## Arguments
+    ///
+    /// * `limit`: **IMPORTANT: almost always pass this** (e.g. `limit=10` for a
+    ///   top-10). Rows are sorted by `total_revenue` DESC and `limit` is applied as
+    ///   a SQL `LIMIT`. DO NOT omit `limit` unless you explicitly need every
+    ///   station in the network, otherwise the response is unbounded.
+    /// * `freq`: Optional bucket granularity (default `week_sun`). To rank
+    ///   stations across a whole window, choose a `freq` that yields ONE bucket
+    ///   (e.g. `freq=quarter` for a quarter) so each station appears once.
+    ///   **`freq=day` is rejected with an error.**
+    /// * `start` / `end`: Optional window bounds (Asia/Taipei naive datetimes).
+    /// * `seller_id`: Pass a `seller_id` to scope to one seller (the response then carries a
+    /// `seller_id` column); omit it for a network-wide query.
+    ///
+    /// ## Note
+    ///
+    /// `*_wow_growth` is a ratio (not %) and follows `freq` (MoM at month, YoY at
+    /// year). Use this endpoint's `revenue_per_kw`, not the legacy
+    /// `bill_revenue.*_revenue_per_kw`.
+    #[tool(
+        description = "[Starcharger] per-station revenue ranking (clean revenue_per_kw), ordered by total_revenue DESC. ALWAYS pass `limit` (e.g. 10 for top-10) unless you explicitly want every station. `freq=day` is rejected; for a whole-window ranking use a single-bucket freq (e.g. quarter). Optional `start`/`end`/`seller_id`."
+    )]
+    pub async fn station_revenue_ranking(
+        &self,
+        Parameters(args): Parameters<StationRevenueRankingArgs>,
+    ) -> Result<Json<ListResponse<StationRevenueRankingEntry>>, ErrorData> {
+        let res = self
+            .client
+            .get_array_into_object::<_, StationRevenueRankingEntry>(
+                "station_revenue_ranking",
+                &args.window,
+            )
             .await?;
         Ok(Json(res))
     }

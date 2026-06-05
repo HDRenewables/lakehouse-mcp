@@ -26,9 +26,13 @@ pub struct PileDataQueryWindow {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seller_id: Option<i64>,
 
-    /// The record limit while querying the `station_revenue_ranking` endpoint.
+    /// The record limit, honoured ONLY by `station_revenue_ranking` (applied as a
+    /// SQL `LIMIT` after `ORDER BY total_revenue DESC`); every other endpoint
+    /// ignores it.
     ///
-    /// **NOTE**: Other endpoint ignores this argument.
+    /// **PITFALL**: for `station_revenue_ranking`, DO NOT omit `limit` unless you
+    /// explicitly want the full, unbounded list of every station. For a top-N
+    /// query (e.g. "top 10 stations") pass `limit = 10`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i64>,
 

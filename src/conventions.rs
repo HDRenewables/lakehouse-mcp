@@ -23,7 +23,10 @@ This server exposes read-only tools over the datacenter unified API.
   `month_start`) is REJECTED with an `invalid_params` error — pick from the
   list above. (`station_revenue_ranking` additionally rejects `day`.)
 • `limit` parameter — only honoured by `station_revenue_ranking`; silently
-  ignored by every other tool.
+  ignored by every other tool. When calling `station_revenue_ranking`, ALWAYS
+  pass `limit` (e.g. `10` for a top-10) UNLESS you explicitly want every station
+  — its rows are ordered by `total_revenue` DESC, so omitting `limit` returns the
+  full unbounded list.
 • `seller_id` — when present, the `_seller` view variant is queried and the
   response carries a `seller_id` key. When absent, the network-wide variant is
   used.
