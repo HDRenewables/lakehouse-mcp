@@ -1,10 +1,9 @@
-//! # eomc-mcp — pile_data MCP server
+//! # EOMC datacenter MCP service
 //!
-//! A Model Context Protocol server that relays the `pile_data` lakehouse
-//! endpoints to the upstream Starcharger Axum API. This first slice exposes a
-//! single tool, `bill_revenue`.
+//! A Model Context Protocol server that fetch data from upstream datacenter APIs
+//! and provide them through MCP.
 //!
-//! ## Transports
+//! ## Modes
 //!
 //! - **stdio (default).** A client spawns the binary as a subprocess and talks
 //!   JSON-RPC over stdin/stdout. Right when client and server run on the same machine.
@@ -12,8 +11,9 @@
 //!   over axum at `POST/GET /mcp`, binding `BIND_ADDR` (default `0.0.0.0`) :
 //!   `BIND_PORT` (default `8000`). Put TLS + auth in front via a reverse proxy.
 //!
-//! Both modes share the same tool logic; only bootstrap differs.
+//! Both modes share the same tool logic, only bootstrap differs.
 
+use std::io::IsTerminal;
 use std::sync::Arc;
 
 use rmcp::{
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     // handling application logging.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
-        .with_ansi(false)
+        .with_ansi(std::io::stderr().is_terminal())
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
@@ -85,9 +85,11 @@ async fn run_stdio(client: Arc<ApiClient>) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Serve over Streamable HTTP via axum. A fresh [`EomcServer`] is built per
-/// session by the service factory; the in-memory [`LocalSessionManager`] tracks
-/// `Mcp-Session-Id` across a client's requests.
+/// Serve over Streamable HTTP via axum.
+///
+/// A fresh [`EomcServer`] is built per session by the service factory,
+/// the in-memory [`LocalSessionManager`] tracks `Mcp-Session-Id` across
+/// a client's requests.
 async fn run_http(client: Arc<ApiClient>) -> anyhow::Result<()> {
     let bind = bind_address();
 
