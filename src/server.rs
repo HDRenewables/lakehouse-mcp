@@ -21,8 +21,9 @@ use rmcp::{
 use crate::client::ApiClient;
 use crate::conventions;
 use crate::tools::dto::{
-    BillRevenueArgs, BillRevenueEntry, ListResponse, StationRevenueRankingArgs,
-    StationRevenueRankingEntry,
+    BillChargeArgs, BillChargeEntry, BillMemberAnalysisArgs, BillMemberAnalysisEntry,
+    BillRevenueArgs, BillRevenueEntry, BusinessMetricsArgs, BusinessMetricsEntry, ListResponse,
+    MemberAnalysisArgs, MemberAnalysisEntry, StationRevenueRankingArgs, StationRevenueRankingEntry,
 };
 
 /// MCP server over the datacenter APIs. Holds the upstream HTTP client
@@ -115,6 +116,135 @@ impl EomcServer {
             .client
             .get_array_into_object::<_, StationRevenueRankingEntry>(
                 "station_revenue_ranking",
+                &args.window,
+            )
+            .await?;
+        Ok(Json(res))
+    }
+
+    /// [Starcharger] period-bucketed charging ACTIVITY (not revenue).
+    ///
+    /// Session count, total charging seconds, and total kWh dispensed per period.
+    /// Counts bills with status IN (12, 14, 18, 19) — INCLUDING cancellations and
+    /// refunds — so it will NOT reconcile with `bill_revenue` (success-only).
+    ///
+    /// ## When to use
+    ///
+    /// Use `bill_charge` for "how much was the network USED" (energy/sessions);
+    /// use `bill_revenue` for "how much was BILLED" (money). Their totals differ
+    /// by design.
+    ///
+    /// ## Arguments
+    ///
+    /// * `start` / `end` / `freq` (default `week_sun`) / `seller_id` (omit for
+    ///   network-wide).
+    #[tool(
+        description = "[Starcharger] period-bucketed charging ACTIVITY: session count, total charging seconds, total kWh dispensed. INCLUDES cancellations/refunds, so it does NOT reconcile with bill_revenue (success-only). Use for network usage, not money. Granularity via `freq` (default week_sun); optional `start`/`end`/`seller_id`."
+    )]
+    pub async fn bill_charge(
+        &self,
+        Parameters(args): Parameters<BillChargeArgs>,
+    ) -> Result<Json<ListResponse<BillChargeEntry>>, ErrorData> {
+        let res = self
+            .client
+            .get_array_into_object::<_, BillChargeEntry>("bill_charge", &args.window)
+            .await?;
+        Ok(Json(res))
+    }
+
+    /// [Starcharger] member acquisition & active-member counts per period.
+    ///
+    /// A TIME SERIES (one row per period): new sign-ups, cumulative member base,
+    /// bills issued, and DISTINCT active members.
+    ///
+    /// ## When to use
+    ///
+    /// Use this for "how many members / how many distinct people charged". For a
+    /// SEGMENT breakdown of orders (cohort × AC/DC × venue) use
+    /// `bill_member_analysis` instead.
+    ///
+    /// ## Warning
+    ///
+    /// `charge_member` is a BILL COUNT, not distinct members — use
+    /// `unique_charge_member` for the distinct-people metric. Periods with zero
+    /// new members AND zero bills are dropped (not emitted as zero rows).
+    ///
+    /// ## Arguments
+    ///
+    /// * `start` / `end` / `freq` (default `week_sun`) / `seller_id`.
+    #[tool(
+        description = "[Starcharger] member acquisition + active-member counts per period (time series): new_members, total_members (cumulative), charge_member (BILL count), unique_charge_member (DISTINCT people). For segment breakdowns use bill_member_analysis. Granularity via `freq` (default week_sun); optional `start`/`end`/`seller_id`."
+    )]
+    pub async fn member_analysis(
+        &self,
+        Parameters(args): Parameters<MemberAnalysisArgs>,
+    ) -> Result<Json<ListResponse<MemberAnalysisEntry>>, ErrorData> {
+        let res = self
+            .client
+            .get_array_into_object::<_, MemberAnalysisEntry>("member_analysis", &args.window)
+            .await?;
+        Ok(Json(res))
+    }
+
+    /// [Starcharger] station & pile growth per period (network footprint).
+    ///
+    /// New stations / piles / running-stations that came online, plus the
+    /// cumulative all-time installed totals, per period.
+    ///
+    /// ## Note
+    ///
+    /// `total_*` columns are cumulative across all time and never reset per year.
+    /// `new_*_growth` ratios routinely exceed 1.0 (a value of `6.1` means a 7.1×
+    /// jump). Ratios, not percentages.
+    ///
+    /// ## Arguments
+    ///
+    /// * `start` / `end` / `freq` (default `week_sun`) / `seller_id`.
+    #[tool(
+        description = "[Starcharger] station & pile growth per period: new_stations/new_piles/new_running_stations plus cumulative total_stations/total_piles/total_running_stations and POP growth ratios. Granularity via `freq` (default week_sun); optional `start`/`end`/`seller_id`."
+    )]
+    pub async fn business_metrics(
+        &self,
+        Parameters(args): Parameters<BusinessMetricsArgs>,
+    ) -> Result<Json<ListResponse<BusinessMetricsEntry>>, ErrorData> {
+        let res = self
+            .client
+            .get_array_into_object::<_, BusinessMetricsEntry>("business_metrics", &args.window)
+            .await?;
+        Ok(Json(res))
+    }
+
+    /// [Starcharger] success-only order counts cross-segmented by cohort × AC/DC × venue.
+    ///
+    /// A cross-tabulation: MANY rows per period — one per
+    /// `(member_category × current_mode × construction)` cell — each with an
+    /// `order_count`. Labels are Chinese (e.g. `2C會員`, `DC`, `超市`).
+    ///
+    /// ## Warning — response size
+    ///
+    /// The cross-product is LARGE. ALWAYS pass a TIGHT `start`/`end` (e.g. a
+    /// single month) to bound the window; prefer a coarse `freq` (e.g. `month`).
+    /// Do NOT query an unbounded or multi-quarter window.
+    ///
+    /// ## When to use
+    ///
+    /// Use this for "which member tiers / venues / AC vs DC drive orders". For a
+    /// simple member-count time series use `member_analysis` instead.
+    ///
+    /// ## Arguments
+    ///
+    /// * `start` / `end` (keep tight!) / `freq` (default `week_sun`) / `seller_id`.
+    #[tool(
+        description = "[Starcharger] success-only ORDER COUNTS cross-segmented by member cohort × AC/DC mode × station venue (Chinese labels); MANY rows per period. Use for segment mix, NOT a member time series (that's member_analysis). LARGE output — ALWAYS pass a tight `start`/`end` (e.g. one month). Optional `seller_id`/`freq`."
+    )]
+    pub async fn bill_member_analysis(
+        &self,
+        Parameters(args): Parameters<BillMemberAnalysisArgs>,
+    ) -> Result<Json<ListResponse<BillMemberAnalysisEntry>>, ErrorData> {
+        let res = self
+            .client
+            .get_array_into_object::<_, BillMemberAnalysisEntry>(
+                "bill_member_analysis",
                 &args.window,
             )
             .await?;
