@@ -32,5 +32,22 @@ This server exposes read-only tools over the datacenter unified API.
   used.
 • Reconciliation gotcha — `bill_revenue` is success-only (`bill_status = 14`);
   `bill_charge` counts cancellations and refunds. Their totals will not match
-  by design.
+  by design. Use `bill_charge` for network USAGE (energy/sessions), `bill_revenue`
+  for MONEY billed.
+
+## Picking the right MEMBER tool (member_analysis vs bill_member_analysis)
+• `member_analysis` — a TIME SERIES of member COUNTS, one row per period: new
+  sign-ups, cumulative base, bills issued, and DISTINCT active members
+  (`unique_charge_member`). Use it for "how many members / how many distinct
+  people charged over time". NOTE: `charge_member` is a BILL count, not distinct
+  members.
+• `bill_member_analysis` — a SEGMENT BREAKDOWN of success-only ORDER COUNTS,
+  cross-tabbed by member cohort × AC/DC mode × station venue. MANY rows per
+  period (one per segment cell), Chinese labels. Use it for "which segments
+  (tiers / venues / AC vs DC) drive orders".
+• PITFALL — these are different data sources; do not confuse them. For a count
+  over time → `member_analysis`. For a cross-segment mix → `bill_member_analysis`.
+• SIZE PITFALL — `bill_member_analysis` is a cross-product and can be EXTREMELY
+  large. ALWAYS bound it with a TIGHT `start`/`end` (e.g. a single month) and a
+  coarse `freq`. Never query it unbounded or over many quarters at fine `freq`.
 "#;
