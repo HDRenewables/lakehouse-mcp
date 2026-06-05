@@ -103,13 +103,12 @@ pub struct BillRevenueArgs {
     pub window: PileDataQueryWindow,
 }
 
-/// Envelope for the `bill_revenue` tool result.
+/// Envelope for general list-to-object queries.
 ///
-/// The MCP spec requires a tool's `outputSchema` root to be an `object`, so the
-/// period-bucketed rows are returned under `entries` rather than as a bare
-/// top-level array.
+/// The MCP spec requires a tool's `outputSchema` root to be an `object`, so list
+/// responses are wrapped under `result`.
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct BillRevenueResponse {
-    /// One row per period, ordered by `label` ascending (upstream order).
-    pub entries: Vec<BillRevenueEntry>,
+pub struct ListResponse<T> {
+    /// The list of items returned by the query.
+    pub result: Vec<T>,
 }
