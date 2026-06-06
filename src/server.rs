@@ -43,7 +43,7 @@ use crate::tools::dto::{
 /// MCP server over the datacenter APIs. Holds the upstream HTTP client
 /// and the macro-generated tool router.
 #[derive(Clone)]
-pub struct EomcServer {
+pub struct DatacenterMcpServer {
     /// The upstream HTTP client.
     client: Arc<ApiClient>,
     /// The macro-generated tool router.
@@ -51,7 +51,7 @@ pub struct EomcServer {
 }
 
 #[tool_router]
-impl EomcServer {
+impl DatacenterMcpServer {
     /// Build the server around an upstream API client.
     pub fn new(client: Arc<ApiClient>) -> Self {
         Self {
@@ -268,7 +268,7 @@ impl EomcServer {
 
 /// Server handler that wires the tool router into the MCP server.
 #[tool_handler(router = self.tool_router)]
-impl ServerHandler for EomcServer {
+impl ServerHandler for DatacenterMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(conventions::INSTRUCTIONS.to_string()),

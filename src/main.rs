@@ -48,7 +48,7 @@ mod tools;
 use appstate::AppState;
 use client::ApiClient;
 use config::Config;
-use server::EomcServer;
+use server::DatacenterMcpServer;
 use tokio::signal;
 
 #[tokio::main]
@@ -94,7 +94,7 @@ fn bind_address() -> String {
 /// disconnects (stdin EOF), at which point we shut down cleanly.
 async fn run_stdio(client: Arc<ApiClient>) -> anyhow::Result<()> {
     tracing::info!("starting eomc-mcp server over stdio");
-    let service = EomcServer::new(client).serve(stdio()).await?;
+    let service = DatacenterMcpServer::new(client).serve(stdio()).await?;
     service.waiting().await?;
     tracing::info!("eomc-mcp server shutting down");
     Ok(())
@@ -109,7 +109,7 @@ async fn run_http(client: Arc<ApiClient>) -> anyhow::Result<()> {
     let bind = bind_address();
 
     let service = StreamableHttpService::new(
-        move || Ok(EomcServer::new(client.clone())),
+        move || Ok(DatacenterMcpServer::new(client.clone())),
         Arc::new(LocalSessionManager::default()),
         Default::default(),
     );
