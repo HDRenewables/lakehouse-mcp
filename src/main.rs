@@ -6,9 +6,9 @@
 //! ## Modes
 //!
 //! - **stdio (default).** A client spawns the binary as a subprocess and talks
-//!   JSON-RPC over stdin/stdout. Right when client and server run on the same machine.
-//! - **Streamable HTTP (`--serve`).** The MCP spec's remote transport, served
-//!   over axum at `POST/GET /mcp`, binding `BIND_ADDR` (default `0.0.0.0`) :
+//!   JSON-RPC over stdin/stdout. Suitable for local development.
+//! - **Streamable HTTP (`--serve`).** Server mode served over axum at
+//!   `POST/GET /mcp`, binding `BIND_ADDR` (default `0.0.0.0`) and
 //!   `BIND_PORT` (default `8000`). Put TLS + auth in front via a reverse proxy.
 //!
 //! Both modes share the same tool logic, only bootstrap differs.
@@ -35,6 +35,7 @@ use appstate::AppState;
 use client::ApiClient;
 use config::Config;
 use server::EomcServer;
+use tokio::signal;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -104,10 +105,30 @@ async fn run_http(client: Arc<ApiClient>) -> anyhow::Result<()> {
     tracing::info!(%bind, "eomc-mcp serving Streamable HTTP at POST/GET /mcp");
     // Shut down gracefully on Ctrl-C.
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("eomc-mcp server shutting down");
-        })
+        .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
+}
+
+/// Resolves when SIGINT or (on Unix) SIGTERM is received.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("ctrl_c handler");
+    };
+
+    #[cfg(unix)]
+    let sigterm = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let sigterm = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c  => tracing::info!("received SIGINT"),
+        _ = sigterm => tracing::info!("received SIGTERM"),
+    }
 }
