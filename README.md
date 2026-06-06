@@ -64,3 +64,7 @@ Portions of this codebase were generated with the assistance of Claude Opus 4.8.
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for project change history and release notes.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
