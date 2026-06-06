@@ -53,7 +53,7 @@ Point any MCP client at the server (e.g. the
 [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)):
 
 ```bash
-npx @modelcontextprotocol/inspector ./target/debug/eomc-mcp            # stdio
+npx @modelcontextprotocol/inspector ./target/debug/datacenter-mcp            # stdio
 npx @modelcontextprotocol/inspector --url http://127.0.0.1:8000/mcp    # HTTP (server running with --serve)
 ```
 

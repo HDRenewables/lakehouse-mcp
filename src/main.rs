@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! # EOMC datacenter MCP service
+//! # Datacenter MCP service
 //!
 //! A Model Context Protocol server that fetch data from upstream datacenter APIs
 //! and provide them through MCP.
@@ -93,16 +93,16 @@ fn bind_address() -> String {
 /// Serve over stdio: handshake on stdin/stdout, then block until the peer
 /// disconnects (stdin EOF), at which point we shut down cleanly.
 async fn run_stdio(client: Arc<ApiClient>) -> anyhow::Result<()> {
-    tracing::info!("starting eomc-mcp server over stdio");
+    tracing::info!("Datacenter MCP server serving over stdio");
     let service = DatacenterMcpServer::new(client).serve(stdio()).await?;
     service.waiting().await?;
-    tracing::info!("eomc-mcp server shutting down");
+    tracing::info!("Datacenter MCP server shutting down");
     Ok(())
 }
 
 /// Serve over Streamable HTTP via axum.
 ///
-/// A fresh [`EomcServer`] is built per session by the service factory,
+/// A fresh [`DatacenterMcpServer`] is built per session by the service factory,
 /// the in-memory [`LocalSessionManager`] tracks `Mcp-Session-Id` across
 /// a client's requests.
 async fn run_http(client: Arc<ApiClient>) -> anyhow::Result<()> {
@@ -116,7 +116,7 @@ async fn run_http(client: Arc<ApiClient>) -> anyhow::Result<()> {
     let app = axum::Router::new().nest_service("/mcp", service);
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
-    tracing::info!(%bind, "eomc-mcp serving Streamable HTTP at POST/GET /mcp");
+    tracing::info!(%bind, "Datacenter MCP server serving at HTTP /mcp");
     // Shut down gracefully on Ctrl-C.
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
