@@ -1,5 +1,9 @@
 # Datacenter MCP server
 
+<p align="center">
+<img src="mcp-everywhere.jpeg" width="450" />
+</p>
+
 A [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes
 the datacenter API as read-only, self-documenting tools.
 
